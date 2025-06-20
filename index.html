@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pi WiFi Setup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥧 Raspberry Pi WiFi Setup</h1>
+        <p>Configure your Raspberry Pi's WiFi connection</p>
+        
+        <div id="status"></div>
+        
+        <form id="wifiForm">
+            <div class="form-group">
+                <label for="piAddress">Pi IP Address:</label>
+                <input type="text" id="piAddress" value="192.168.4.1" placeholder="192.168.4.1">
+            </div>
+            
+            <div class="form-group">
+                <button type="button" onclick="scanNetworks()">Scan Networks</button>
+            </div>
+            
+            <div class="form-group">
+                <label for="networkSelect">Select Network:</label>
+                <select id="networkSelect">
+                    <option value="">Select a network...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="ssid">Or enter SSID manually:</label>
+                <input type="text" id="ssid" placeholder="Network name">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="WiFi password">
+            </div>
+            
+            <button type="submit">Configure WiFi</button>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE = 'http://192.168.4.1:5000/api';
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        async function scanNetworks() {
+            const piAddress = document.getElementById('piAddress').value;
+            const apiUrl = `http://${piAddress}:5000/api`;
+            
+            showStatus('Scanning for networks...', 'info');
+            
+            try {
+                const response = await fetch(`${apiUrl}/scan`);
+                const data = await response.json();
+                
+                if (data.networks) {
+                    const select = document.getElementById('networkSelect');
+                    select.innerHTML = '<option value="">Select a network...</option>';
+                    
+                    data.networks.forEach(network => {
+                        const option = document.createElement('option');
+                        option.value = network;
+                        option.textContent = network;
+                        select.appendChild(option);
+                    });
+                    
+                    showStatus(`Found ${data.networks.length} networks`, 'success');
+                } else {
+                    showStatus('No networks found', 'error');
+                }
+            } catch (error) {
+                showStatus(`Error scanning networks: ${error.message}`, 'error');
+            }
+        }
+        
+        document.getElementById('networkSelect').addEventListener('change', function() {
+            document.getElementById('ssid').value = this.value;
+        });
+        
+        document.getElementById('wifiForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const piAddress = document.getElementById('piAddress').value;
+            const apiUrl = `http://${piAddress}:5000/api`;
+            const ssid = document.getElementById('ssid').value;
+            const password = document.getElementById('password').value;
+            
+            if (!ssid) {
+                showStatus('Please enter a network name', 'error');
+                return;
+            }
+            
+            showStatus('Configuring WiFi...', 'info');
+            
+            try {
+                const response = await fetch(`${apiUrl}/configure`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ssid, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus('WiFi configured successfully! The Pi will now connect to your network.', 'success');
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`Error configuring WiFi: ${error.message}`, 'error');
+            }
+        });
+        
+        // Auto-scan networks on page load
+        window.addEventListener('load', function() {
+            setTimeout(scanNetworks, 1000);
+        });
+    </script>
+</body>
+</html>
